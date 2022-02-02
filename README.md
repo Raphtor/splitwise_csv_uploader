@@ -11,7 +11,11 @@ Uploads CSVs of transactions (i.e from your bank) to Splitwise.
 
 # Installation
 
+Installing requirments:
+
 `pip install -r requirements.txt`
+
+You will need a consumer/key and secret to run this app. You can make and register an app [here](https://secure.splitwise.com/oauth_clients). When you first run this script, it will ask you for them. Alternatively, you can pass a json file with keys "consumer_key" and "consumer_secret" into the script. By default, the script will save these keys to `~/.splitwise/secret`
 
 # Running
 
