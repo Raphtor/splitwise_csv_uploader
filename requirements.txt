@@ -1,0 +1,3 @@
+Flask==2.0.2
+splitwise==2.3.0
+pandas==1.4.0
