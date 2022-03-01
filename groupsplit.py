@@ -79,7 +79,7 @@ def match_group(client:Splitwise, groupname:str):
             matched_group = group
             break
     return matched_group
-def match_user(user, group):
+def match_user(user, group:Group):
     """Based on a username, returns their member object within a group
 
     Args:
@@ -92,7 +92,7 @@ def match_user(user, group):
     Returns:
         User: User object
     """     
-    for member in group:
+    for member in group.members:
         if match_name(user, member):
             return member
     raise ValueError(f"Unable to match user argument {user} to members in group")
@@ -154,7 +154,7 @@ def main(args):
     if args.user is None:
         current_user = client.getCurrentUser()
     else:
-        current_user = match_user(client, args.user, group)
+        current_user = match_user(args.user, group)
 
     splits = make_default_split(default_split,group.getMembers())
     with open(fn,'r') as fp:
