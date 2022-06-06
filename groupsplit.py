@@ -116,16 +116,20 @@ def get_name(user:User):
     if ln is None:
         return fn
     return f"{fn} {ln}"
+def write_creds(creds, id_file):
+    os.makedirs(os.path.dirname(id_file), exist_ok=True)
+    with open(id_file,'w') as fp:
+        json.dump(creds, fp)
 def main(args):
-    queue = multiprocessing.Queue()
     
-    flask_process = multiprocessing.Process(target=app.start_server, args=(queue,))
-    flask_process.start()
     fn = args.file
     groupname = args.group
     id_file = args.identity_file
     dry_run = args.dry_run
     default_split = args.default_split
+    with open(fn,'r') as fp:
+        transactions_df = pd.read_csv(fn, usecols=[args.date_col, args.desc_col, args.amount_col])
+    
     if os.path.isfile(id_file):
         with open(id_file,'r') as fp:
             creds = json.load(fp)
@@ -137,18 +141,25 @@ def main(args):
         creds = {}
         creds['consumer_key'] = consumer_key
         creds['consumer_secret'] = consumer_secret
-        os.makedirs(os.path.dirname(id_file), exist_ok=True)
-        with open(id_file,'w') as fp:
-            json.dump(creds, fp)
+        write_creds(creds, id_file)
     client = splitwise.Splitwise(**creds)
-    url, secret = client.getAuthorizeURL()
-    webbrowser.open(url)
-    try:
-        d = queue.get(True, timeout=30)
-    except:
-        raise RuntimeError('Unable to get auth from Splitwise')
-    flask_process.terminate()
-    access_token = client.getAccessToken(oauth_token_secret=secret,**d)
+    if "access_token" not in creds:
+        queue = multiprocessing.Queue()
+    
+        flask_process = multiprocessing.Process(target=app.start_server, args=(queue,))
+        flask_process.start()
+        url, secret = client.getAuthorizeURL()
+        webbrowser.open(url)
+        try:
+            d = queue.get(True, timeout=30)
+        except:
+            raise RuntimeError('Unable to get auth from Splitwise')
+        flask_process.terminate()
+        access_token = client.getAccessToken(oauth_token_secret=secret,**d)
+        creds['access_token'] = access_token
+        write_creds(creds, id_file)
+    else:
+        access_token = creds['access_token']
     client.setAccessToken(access_token=access_token)
     group = match_group(client, groupname)
     if args.user is None:
@@ -157,8 +168,7 @@ def main(args):
         current_user = match_user(args.user, group)
 
     splits = make_default_split(default_split,group.getMembers())
-    with open(fn,'r') as fp:
-        transactions_df = pd.read_csv(fn, usecols=[args.date_col, args.desc_col, args.amount_col])
+    
     transactions_df = transactions_df.dropna(axis=0,how='all')
     transactions_df[args.date_col] = pd.to_datetime(transactions_df[args.date_col])
     transactions_df[args.amount_col] = -transactions_df[args.amount_col].astype(float)
@@ -186,8 +196,8 @@ def main(args):
             total_amount += true_amount
             if j+1 == len(splits):
                 if not np.isclose(total_amount,amount):
-                    print(f"Total amount of split {total_amount} does not equal transaction amount {amount}, adding a cent to {get_name(member)}'s share")
-                    true_amount += 0.01
+                    print(f"Total amount of split {total_amount} does not equal transaction amount {amount}, adding the difference to {get_name(member)}'s share")
+                    true_amount += (amount-total_amount)
             transactions_df.loc[i,get_name(member)] = true_amount
             expense_user = ExpenseUser()
             expense_user.setId(member.getId())
